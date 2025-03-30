@@ -1,0 +1,24 @@
+﻿@inject IJSRuntime JSRuntime
+
+<div id="@DivId" style="height: 80%; width: 80%; position: relative;"></div>
+
+@code {
+
+    private static int componentCounter = 0;
+    private string DivId { get; set; } = $"thumbnailViewer_{componentCounter++}";
+
+    [Parameter]
+    public IDictionary<string, object> Info { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+
+        Console.WriteLine(Info);
+
+        if (firstRender)
+        {
+            await Task.Delay(100);
+            await JSRuntime.InvokeVoidAsync("createDashboardThumbnail", DivId, Info);
+        }
+    }
+}

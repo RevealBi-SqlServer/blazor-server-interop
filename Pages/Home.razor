@@ -1,0 +1,378 @@
+@page "/"
+@page "/home"
+@using DashboardViewer.Components
+@using DashboardViewer.Models
+@using RevealServer
+@inject IJSRuntime JSRuntime
+@inject IRevealServerService RevealServerService
+
+<div class="row-layout master-view-container">
+    <div class="column-layout group">
+        <IgbButton Size="SizableComponentSize.Large" @onclick="NewDashboardClick" class="button new-dashboard-button" master_view-scope>
+            @buttonText
+            <IgbRipple></IgbRipple>
+        </IgbButton>
+        <IgbList class="list" master_view-scope>
+            @foreach (var item in _revealServerDashboardNames)
+            {
+                <IgbListItem class="igb-list" style="@SetListItemCss(item.DashboardTitle)" @onclick="() => ListItemClick(item)">
+                    <IgbCardMedia style="height: 50px; width: 100px;" slot="start">
+                        <DashboardThumbnail Info="@item.ThumbnailInfo"></DashboardThumbnail>
+                    </IgbCardMedia>
+                    <span slot="end" class="material-icons icon" @onclick:stopPropagation="true" @onclick="@(e => ConfirmDelete(item.DashboardFilename))">
+                        delete
+                    </span>
+                    <div slot="title">@item.DashboardTitle</div>
+                </IgbListItem>
+            }
+        </IgbList>
+    </div>
+    <div class="column-layout group_1">
+        <div id="revealView" class="reveal-dashboard"></div>
+        <IgbDialog CloseOnOutsideClick="true" @ref="_dialog">
+            <h5 slot="title">
+                @(_selectedDialogDashboard ?? "Select Dashboard")
+            </h5>
+            <div class="column-layout group_1">
+                <IgbList class="list" master_view-scope>
+                    @foreach (var item in _revealServerDashboardNames)
+                    {
+                        <IgbListItem @onclick="() => DialogListItemClick(item)">
+                            <IgbCardMedia style="height: 25px; width: 50px;" slot="start">
+                                <DashboardThumbnail Info="@item.ThumbnailInfo"></DashboardThumbnail>
+                            </IgbCardMedia>
+                            <div slot="title">@item.DashboardTitle</div>
+                        </IgbListItem>
+                    }
+                </IgbList>
+            </div>
+            <div slot="footer">
+                <IgbButton Size="SizableComponentSize.Large" @onclick="@(e => CancelClick())" class="button" master_view-scope>
+                    Cancel
+                    <IgbRipple></IgbRipple>
+                </IgbButton>
+                <IgbButton Size="SizableComponentSize.Large" @onclick="@(e => SelectClick())" class="button" master_view-scope>
+                    Select
+                    <IgbRipple></IgbRipple>
+                </IgbButton>
+            </div>
+        </IgbDialog>
+        <IgbDialog CloseOnOutsideClick="false" @ref="_dialog1">
+            <h5 slot="title">
+                Confirmation
+            </h5>
+            <p>Are you sure you want to delete this dashboard?</p>
+            <div slot="footer">
+                <IgbButton Variant="ButtonVariant.Flat" Size="SizableComponentSize.Large" @onclick="@(e => CancelDelete())">
+                    Cancel
+                    <IgbRipple></IgbRipple>
+                </IgbButton>
+                <IgbButton Variant="ButtonVariant.Flat" Size="SizableComponentSize.Large" @onclick="@(e => ConfirmDeleteAction())">
+                    OK
+                    <IgbRipple></IgbRipple>
+                </IgbButton>
+            </div>
+        </IgbDialog>
+
+        <IgbDialog CloseOnOutsideClick="false" @ref="_dialog3">
+            <h5 slot="title">
+                Confirmation
+            </h5>
+            <p>Are you sure you want to cancel?</p>
+            <div slot="footer">
+                <IgbButton Variant="ButtonVariant.Flat" Size="SizableComponentSize.Large" @onclick="@(e => OnCancelDialogCancelClick())">
+                    Cancel
+                    <IgbRipple></IgbRipple>
+                </IgbButton>
+                <IgbButton Variant="ButtonVariant.Flat" Size="SizableComponentSize.Large" @onclick="@(e => OnCancelDialogOkClick())">
+                    OK
+                    <IgbRipple></IgbRipple>
+                </IgbButton>
+            </div>
+        </IgbDialog>
+
+
+        <IgbDialog CloseOnOutsideClick="false" @ref="_dialog2">
+            <h5 slot="title">
+                Enter New Dashboard Name
+            </h5>
+            <IgbInput Outlined="true" Value="" ValueChanged="@(e => DialogService.UpdateDashboardName(e))" class="input" master_view-scope></IgbInput>
+            <div slot="footer">
+                <IgbButton Variant="ButtonVariant.Outlined" Size="SizableComponentSize.Large" class="button_1" master_view-scope @onclick="@(e => DialogService.CancelNewDashboardName())">
+                    Cancel
+                    <IgbRipple></IgbRipple>
+                </IgbButton>
+                <IgbButton Size="SizableComponentSize.Large" class="button_1" master_view-scope @onclick="@(e => DialogService.ConfirmNewDashboardName())">
+                    OK
+                    <IgbRipple></IgbRipple>
+                </IgbButton>
+            </div>
+        </IgbDialog>
+    </div>
+</div>
+
+@code {
+    private static List<DashboardNames> _revealServerDashboardNames = new();
+    private static IRevealServerService? _revealServerService;
+    private static Action? _stateHasChanged;
+    private static Action? _resetStateAction;
+    private string? _selectedDashboard = "";
+    private string? _selectedDialogDashboard = "";
+    private string _dashboardToDelete = "";
+    private string newDashboardName = "";
+    private bool isCreatingNewDashboard = false;
+    private string buttonText = "New Dashboard";
+    private string[] selectedCustomerId = new[] { "BLONP" };
+    private string[] selectedOrderId = new[] { "10248" };
+
+    private IgbDialog _dialog;
+    private IgbDialog _dialog1;
+    private IgbDialog _dialog2;
+    private IgbDialog _dialog3;
+    private TaskCompletionSource<bool> _cancelDialogTcs;
+    private List<DashboardNames> _revealDialogNames = new();
+    private List<IgbDialog> _dialogs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _revealServerService = RevealServerService;
+        _stateHasChanged = StateHasChanged;
+        _resetStateAction = ResetState;
+        _revealServerDashboardNames = await RevealServerService.GetDashboardNamesList();
+        _dialogs = new List<IgbDialog> { _dialog, _dialog1, _dialog2, _dialog3 };
+        await base.OnInitializedAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (_revealServerDashboardNames.Any())
+            {
+                var firstItem = _revealServerDashboardNames[0];
+                _selectedDashboard = firstItem.DashboardFilename;
+                SetListItemCss(_selectedDashboard);
+
+                await LoadRevealDashboard(_selectedDashboard);
+
+            }
+            DialogService.Initialize(JSRuntime, _dialog, _dialog1, _dialog2, _dialog3);
+        }
+    }
+
+    public async void ListItemClick(DashboardNames item)
+    {
+        _selectedDashboard = item.DashboardFilename;
+
+        await LoadRevealDashboard(_selectedDashboard);
+
+    }
+
+    public void DialogListItemClick(DashboardNames item)
+    {
+        _selectedDialogDashboard = item.DashboardFilename;
+        SetListItemCss(_selectedDialogDashboard);
+        DialogService.SetSelectedDialogDashboard(item.DashboardFilename);
+        StateHasChanged();
+    }
+
+    public void CancelClick()
+    {
+        _selectedDialogDashboard = "";
+        DialogService.ToggleDialog();
+    }
+
+    public void SelectClick()
+    {
+        DialogService.NotifySelectedDashboard(_selectedDialogDashboard);
+    }
+
+    public async void NewDashboardClick()
+    {
+        if (isCreatingNewDashboard)
+        {
+            _cancelDialogTcs = new TaskCompletionSource<bool>();
+            await _dialog3.ToggleAsync();
+            bool confirmed = await _cancelDialogTcs.Task;
+
+            if (confirmed)
+            {
+                isCreatingNewDashboard = false;
+                buttonText = "New Dashboard";
+                await LoadFirstOrClearDashboard();
+            }
+        }
+        else
+        {
+            isCreatingNewDashboard = true;
+            buttonText = "Cancel";
+
+            await LoadRevealDashboard(_selectedDashboard);
+
+        }
+
+        StateHasChanged();
+    }
+
+    public void ConfirmDelete(string dashboardFilename)
+    {
+        _dashboardToDelete = dashboardFilename;
+        DialogService.ToggleDeleteDialog();
+    }
+
+    public async void ConfirmDeleteAction()
+    {
+        DialogService.ToggleDeleteDialog();
+        bool result = RevealServerService.DeleteDashboard(_dashboardToDelete);
+        if (result)
+        {
+            _revealServerDashboardNames = await RevealServerService.GetDashboardNamesList();
+            await LoadFirstOrClearDashboard();
+            StateHasChanged();
+        }
+        else
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Failed to delete the dashboard.");
+        }
+    }
+
+    public void CancelDelete()
+    {
+        DialogService.ToggleDeleteDialog();
+    }
+
+    private async Task LoadFirstOrClearDashboard()
+    {
+
+        if (_revealServerDashboardNames.Any())
+        {
+            var firstItem = _revealServerDashboardNames[0];
+            _selectedDashboard = firstItem.DashboardFilename;
+            await LoadRevealDashboard(_selectedDashboard);
+
+        }
+        else
+        {
+            _selectedDashboard = "";
+            await LoadRevealDashboard(_selectedDashboard);
+            StateHasChanged();
+        }
+    }
+
+    private void ResetState()
+    {
+        isCreatingNewDashboard = false;
+        buttonText = "New Dashboard";
+    }
+
+    string SetListItemCss(string dashboardTitle)
+    {
+        return _selectedDashboard == dashboardTitle ? "background-color: lightgrey" : string.Empty;
+    }
+
+    [JSInvokable]
+    public static async Task ReloadDashboardList()
+    {
+        if (_revealServerService != null && _stateHasChanged != null && _resetStateAction != null)
+        {
+            _revealServerDashboardNames = await _revealServerService.GetDashboardNamesList();
+            _resetStateAction.Invoke();
+            _stateHasChanged.Invoke();
+        }
+    }
+
+    private void OnCancelDialogCancelClick()
+    {
+        _dialog3.ToggleAsync();
+        _cancelDialogTcs?.SetResult(false);
+    }
+
+    private void OnCancelDialogOkClick()
+    {
+        _dialog3.ToggleAsync();
+        _cancelDialogTcs?.SetResult(true);
+    }
+
+    private Dictionary<string, string> GetRevealHeaders()
+    {
+        return new Dictionary<string, string>
+        {
+            { "x-header-one", selectedCustomerId.FirstOrDefault() ?? "" },
+            { "x-header-two", selectedOrderId.FirstOrDefault() ?? "" }
+        };
+    }
+
+    private async Task LoadRevealDashboard(string dashboardName)
+    {
+        var headers = GetRevealHeaders();
+        await JSRuntime.InvokeVoidAsync("loadRevealView", "revealView", dashboardName, headers);
+    }
+
+}
+
+
+@code {
+public static class DialogService
+{
+    public static IgbDialog? DialogInstance { get; set; }
+    public static IgbDialog? DeleteDialogInstance { get; set; }
+    public static IgbDialog? NameDialogInstance { get; set; }
+    public static IgbDialog? NewDashboardDialogInstance { get; set; }
+
+    private static string? _selectedDialogDashboard;
+    private static IJSRuntime? _jsRuntime;
+    private static TaskCompletionSource<string>? _dashboardNameTcs;
+    private static string newDashboardName = "";
+
+    public static void Initialize(IJSRuntime jsRuntime, IgbDialog dialogInstance, IgbDialog deleteDialogInstance, IgbDialog nameDialogInstance, IgbDialog newDashboardDialogInstance)
+    {
+        _jsRuntime = jsRuntime;
+        DialogInstance = dialogInstance;
+        DeleteDialogInstance = deleteDialogInstance;
+        NameDialogInstance = nameDialogInstance;
+        NewDashboardDialogInstance = newDashboardDialogInstance;
+    }
+
+    [JSInvokable("ToggleDialog")]
+    public static Task ToggleDialog() => DialogInstance?.ToggleAsync() ?? Task.CompletedTask;
+
+    [JSInvokable("ToggleDeleteDialog")]
+    public static Task ToggleDeleteDialog() => DeleteDialogInstance?.ToggleAsync() ?? Task.CompletedTask;
+
+    [JSInvokable("ToggleNameDialog")]
+    public static Task ToggleNameDialog() => NameDialogInstance?.ToggleAsync() ?? Task.CompletedTask;
+
+    [JSInvokable("PromptForDashboardName")]
+    public static Task<string> PromptForDashboardName()
+    {
+        _dashboardNameTcs = new TaskCompletionSource<string>();
+        NameDialogInstance?.ToggleAsync();
+        return _dashboardNameTcs.Task;
+    }
+
+    public static void CancelNewDashboardName()
+    {
+        NameDialogInstance?.ToggleAsync();
+        _dashboardNameTcs?.SetResult(null);
+    }
+
+    public static void ConfirmNewDashboardName()
+    {
+        NameDialogInstance?.ToggleAsync();
+        _dashboardNameTcs?.SetResult(newDashboardName);
+    }
+
+    [JSInvokable("GetSelectedDialogDashboard")]
+    public static Task<string?> GetSelectedDialogDashboard() => Task.FromResult(_selectedDialogDashboard);
+
+    public static void SetSelectedDialogDashboard(string dashboard) => _selectedDialogDashboard = dashboard;
+
+    public static void NotifySelectedDashboard(string selectedDashboard)
+    {
+        _jsRuntime?.InvokeVoidAsync("selectedDashboardCallback", _selectedDialogDashboard);
+        ToggleDialog();
+    }
+
+    public static void UpdateDashboardName(string name) => newDashboardName = name;
+  }
+}

@@ -1,0 +1,79 @@
+.row-layout {
+    display: flex;
+}
+.master-view-container {
+    justify-content: flex-start;
+    align-items: stretch;
+    align-content: flex-start;
+    height: 100%;
+}
+.column-layout {
+    display: flex;
+    flex-direction: column;
+}
+.group {
+    justify-content: flex-start;
+    align-items: stretch;
+    align-content: flex-start;
+    overflow: auto;
+    position: relative;
+    padding: 24px;
+    width: 20%;
+    min-width: 50px;
+    min-height: 50px;
+    max-width: 30%;
+}
+.group_1 {
+    justify-content: flex-start;
+    align-items: stretch;
+    align-content: flex-start;
+    position: relative;
+    padding: 24px 24px 24px 0;
+    min-width: 50px;
+    min-height: 50px;
+    flex-grow: 1;
+    flex-basis: 0;
+}
+.list {
+    height: max-content;
+}
+.reveal-dash-board {
+    min-width: 400px;
+    min-height: 200px;
+    flex-grow: 1;
+    flex-basis: 0;
+    position: relative;
+}
+.media-content {
+    height: 250px;
+    width:250px;
+}
+
+.igb-list {
+    position: relative;
+    cursor: pointer; 
+}
+
+.icon {
+    visibility: hidden;
+    transition: visibility 0.2s;
+    cursor: pointer;
+}
+
+.igb-list:hover .icon {
+    visibility: visible;
+}
+
+.selected-dashboard {
+    background-color: lightgrey;
+}
+
+.reveal-dashboard {
+    height: calc(100vh - 15px);
+    width: 100%;
+    position: relative;
+}
+
+.new-dashboard-button {
+    margin-bottom: 16px;
+}
