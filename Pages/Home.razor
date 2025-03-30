@@ -206,7 +206,7 @@
         {
             isCreatingNewDashboard = true;
             buttonText = "Cancel";
-
+            _selectedDashboard = "";
             await LoadRevealDashboard(_selectedDashboard);
 
         }
@@ -249,7 +249,6 @@
             var firstItem = _revealServerDashboardNames[0];
             _selectedDashboard = firstItem.DashboardFilename;
             await LoadRevealDashboard(_selectedDashboard);
-
         }
         else
         {
